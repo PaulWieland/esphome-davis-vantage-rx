@@ -1,4 +1,6 @@
 substitutions:
+  wu_station_id: !secret wu_station_id
+  wu_password: !secret wu_password
   name: davis-vantage-receiver
   friendly_name: Vantage Receiver
 
@@ -11,7 +13,64 @@ esp32:
   framework:
     type: arduino
 
+
+# --- OPTIONAL: MQTT BROADCAST ---
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+
+# --- OPTIONAL: WEATHER UNDERGROUND ---
+http_request:
+  useragent: "ESPHome Davis Receiver"
+  timeout: 10s
+
 interval:
+  # --- OPTIONAL: MQTT PUBLISH INTERVAL ---
+  - interval: 30s
+    then:
+      - if:
+          condition:
+            - lambda: "return id(davis_temp).has_state();"
+          then:
+            - mqtt.publish_json:
+                topic: "weather/loop"
+                payload: |-
+                  root["outTemp_F"] = id(davis_temp).state;
+                  root["outHumidity"] = id(davis_hum).state;
+                  root["windSpeed_mph"] = id(davis_wind_speed).state;
+                  root["windSpeed10_mph"] = id(davis_wind_speed).state;
+                  root["windDir"] = id(raw_wind_dir);
+                  root["windGust_mph"] = id(davis_windgust).state;
+                  if (!std::isnan(id(davis_rain).state)) root["dayRain_in"] = id(davis_rain).state;
+                  
+                  // BME280 placeholders for the future
+                  // root["inTemp_F"] = id(bme280_temp).state;
+                  // root["inHumidity"] = id(bme280_humidity).state;
+                  // root["barometer"] = id(bme280_pressure).state;
+
+  # --- OPTIONAL: WUNDERGROUND PUBLISH INTERVAL ---
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            - lambda: "return id(davis_temp).has_state();"
+          then:
+            - http_request.get:
+                url: !lambda |-
+                  char url[300];
+                  float temp = id(davis_temp).state;
+                  float hum = id(davis_hum).state;
+                  float wind = id(davis_wind_speed).state;
+                  float dir = id(raw_wind_dir);
+                  float gust = id(davis_windgust).state;
+                  float rain = std::isnan(id(davis_rain).state) ? 0.0 : id(davis_rain).state;
+                  
+                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&action=updateraw",
+                          "${wu_station_id}", "${wu_password}",
+                          temp, hum, wind, dir, gust, rain);
+                  return std::string(url);
+
   - interval: 30ms
     then:
       - lambda: |-
