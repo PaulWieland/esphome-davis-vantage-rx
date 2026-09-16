@@ -14,16 +14,19 @@ esp32:
     type: arduino
 
 
+# --- OPTIONAL: MQTT BROADCAST ---
 mqtt:
   broker: !secret mqtt_broker
   username: !secret mqtt_username
   password: !secret mqtt_password
 
+# --- OPTIONAL: WEATHER UNDERGROUND ---
 http_request:
   useragent: "ESPHome Davis Receiver"
   timeout: 10s
 
 interval:
+  # --- OPTIONAL: MQTT PUBLISH INTERVAL ---
   - interval: 30s
     then:
       - if:
@@ -46,6 +49,7 @@ interval:
                   // root["inHumidity"] = id(bme280_humidity).state;
                   // root["barometer"] = id(bme280_pressure).state;
 
+  # --- OPTIONAL: WUNDERGROUND PUBLISH INTERVAL ---
   - interval: 60s
     then:
       - if:
