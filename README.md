@@ -58,4 +58,4 @@ Davis weather stations can be configured to broadcast on one of 8 different "Sta
       type: int
       initial_value: '0'
   ```
-If your station is set to ID 2, change the `initial_value` to `'1'`, and so on. This ensures your receiver permanently ignores any neighboring Davis stations broadcasting on different IDs!
+If your station is set to ID 2, change the `initial_value` to `'1'`, and so on.
