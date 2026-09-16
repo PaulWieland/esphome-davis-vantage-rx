@@ -42,10 +42,13 @@ Since the CC1101 narrowband receiver can only listen to one frequency at a time,
 
 ## Finding & Configuring Your Station ID
 
-Davis weather stations can be configured to broadcast on one of 8 different "Station IDs" to prevent interference between neighboring stations.
-* **Factory Default**: Out of the box, Davis stations are set to **Transmitter ID 1**. 
-* **Finding Your ID**: You can find your ID by checking the DIP switches inside the outdoor sensor suite's battery compartment, or by entering the "Setup" menu on your physical Davis console (look for `STA 1 VUE ISS`, where the `1` is the Station ID).
-* **Configuration**: In the ESPHome code, the `known_unit_id` variable is 0-indexed (ID 1 = `0`, ID 2 = `1`, etc.). By default, `davis_receiver.yaml` is hardcoded to listen exclusively to **ID 0** (Station ID 1):
+Davis weather stations can be configured to broadcast on one of 8 different "Station IDs" (often referred to by Davis as "Channels 1-8") to prevent interference between neighboring stations.
+* **Factory Default**: Out of the box, all Davis stations are set to **Channel 1**. 
+* **Finding Your ID**:
+  * **Vantage Vue ISS**: Press the pushbutton on the outdoor transmitter and count the number of LED flashes.
+  * **Vantage Pro2 ISS**: Check the physical DIP switch positions (1-3) on the outdoor transmitter board.
+  * **From the Console**: Enter Setup Mode (Vue: press `2ND` then `SETUP` / VP2: press `DONE` and `-` together) and navigate to the Transmitter IDs screen. Look for the channel that is turned `ON` (e.g., `STA 1 VUE ISS`, where `1` is the Station ID).
+* **Configuration**: In the ESPHome code, the `known_unit_id` variable is 0-indexed (Channel 1 = `0`, Channel 2 = `1`, etc.). By default, `davis_receiver.yaml` is hardcoded to listen exclusively to **ID 0** (Channel 1):
   ```yaml
   globals:
     - id: known_unit_id
