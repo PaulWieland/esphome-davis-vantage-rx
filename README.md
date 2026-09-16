@@ -59,3 +59,26 @@ Davis weather stations can be configured to broadcast on one of 8 different "Sta
       initial_value: '0'
   ```
 If your station is set to ID 2, change the `initial_value` to `'1'`, and so on.
+
+## Optional: MQTT & Weather Underground
+
+This project includes built-in, drop-in replacement support for broadcasting your weather data to an MQTT broker and uploading it to Weather Underground. The MQTT payload structure perfectly mimics the WeeWX `StdRESTful` JSON format (publishing to the `weather/loop` topic), meaning you can swap out an old WeeWX server for this ESP32 without breaking your existing Node-RED or Home Assistant automations.
+
+### Configuration
+To use these features, simply add the following credentials to your local `.esphome/secrets.yaml` file:
+
+```yaml
+mqtt_broker: "192.168.1.100" # Your MQTT broker IP
+mqtt_username: "my_mqtt_user"
+mqtt_password: "my_mqtt_password"
+wu_station_id: "KNYNORTH34" # Your Wunderground Station ID
+wu_password: "your_wu_password"
+```
+
+### Disabling Features
+Both MQTT and Weather Underground broadcasts are **completely optional**. If you prefer to run the ESP32 strictly as a standalone receiver, or only want to use one of the two services, you can safely disable them.
+
+To do so, open `davis_receiver.yaml` and comment out or delete the corresponding setup blocks and interval actions. Look for the bold `# --- OPTIONAL ---` comments in the file:
+1. Comment out the `mqtt:` or `http_request:` setup block at the top of the file.
+2. Comment out the corresponding `- interval:` action block inside the `interval:` component. 
+*(Be careful not to delete the core `- interval: 30ms` radio tuning loop at the very bottom!)*
