@@ -1,6 +1,6 @@
 # Davis Vantage Vue ESP32 Receiver
 
-This project uses an ESP32 and a CC1101 wireless transceiver module to intercept RF signals from a Davis Vantage Vue weather station, decode them using ESPHome, and eventually broadcast them via MQTT and upload to Weather Underground.
+This project uses an ESP32 and a CC1101 wireless transceiver module to intercept RF signals from a Davis Vantage Vue weather station, decode them using ESPHome, and optionally broadcast them via MQTT or upload to Weather Underground.
 
 ## Hardware Wiring
 
@@ -23,16 +23,33 @@ You need to connect the ESP32 (e.g. ESP32-WROOM Dev Kit) to the CC1101 module us
 
 ## Setup Instructions
 
-1. Install ESPHome (e.g., via Home Assistant or command line `pip install esphome`).
-2. Update the `wifi` section in `davis_receiver.yaml` with your local Wi-Fi credentials.
+1. Install ESPHome (e.g., via the command line `pip install esphome`).
+2. Update the `wifi` section in `davis_receiver.yaml` (or via your `secrets.yaml` file) with your local Wi-Fi credentials.
 3. Flash the configuration to your ESP32 via USB for the first time:
    ```bash
    esphome run davis_receiver.yaml
    ```
-4. Open the ESPHome log output. You should start seeing raw RF packet hex data dumped to the console when the weather station transmits (approximately every 2.5 seconds, though with the passive frequency listener you may catch them a bit less frequently as it scans).
+4. Open the ESPHome log output. You should start seeing raw RF packet hex data and decoded weather metrics dumped to the console.
 
-## Next Steps
-Once you confirm you are receiving data:
-1. Map the raw packet bits to specific sensors (temperature, wind, rain) in the lambda.
-2. Publish these sensors via ESPHome's native MQTT component.
-3. Use an automation, Node-RED, or a custom script to forward this data to Weather Underground.
+## Frequency Hopping & Synchronization
+
+The Davis Vantage Vue (US 915MHz model) transmits data using a Frequency Hopping Spread Spectrum (FHSS) protocol across 51 different channels. A packet is broadcast roughly every 2.56 seconds. 
+
+Since the CC1101 narrowband receiver can only listen to one frequency at a time, this ESP32 receiver uses a custom "chase and sync" algorithm:
+1. **Hunting Mode**: The ESP32 listens on a channel for 3 seconds, then steps *backward* to the previous channel. Moving backward while the transmitter moves forward mathematically guarantees a collision (a captured packet) in a maximum of ~70 seconds.
+2. **Sync Mode**: Once a packet is caught, the ESP32 calculates the next channel in the sequence, fast-forwards its tuner, and patiently waits for the next packet to arrive. 
+3. **Coasting**: If RF interference causes a missed packet, the receiver features a 15-second grace period (True Coasting). It automatically fast-forwards its internal stopwatch and hops to the next expected frequency, maintaining perfect sync through noisy sections of the RF band.
+
+## Finding & Configuring Your Station ID
+
+Davis weather stations can be configured to broadcast on one of 8 different "Station IDs" to prevent interference between neighboring stations.
+* **Factory Default**: Out of the box, Davis stations are set to **Transmitter ID 1**. 
+* **Finding Your ID**: You can find your ID by checking the DIP switches inside the outdoor sensor suite's battery compartment, or by entering the "Setup" menu on your physical Davis console (look for `STA 1 VUE ISS`, where the `1` is the Station ID).
+* **Configuration**: In the ESPHome code, the `known_unit_id` variable is 0-indexed (ID 1 = `0`, ID 2 = `1`, etc.). By default, `davis_receiver.yaml` is hardcoded to listen exclusively to **ID 0** (Station ID 1):
+  ```yaml
+  globals:
+    - id: known_unit_id
+      type: int
+      initial_value: '0'
+  ```
+If your station is set to ID 2, change the `initial_value` to `'1'`, and so on. This ensures your receiver permanently ignores any neighboring Davis stations broadcasting on different IDs!
