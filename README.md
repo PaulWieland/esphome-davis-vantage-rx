@@ -2,6 +2,8 @@
 
 This project uses an ESP32 and a CC1101 wireless transceiver module to intercept RF signals from a Davis Vantage Vue weather station, decode them using ESPHome, and optionally broadcast them via MQTT and/or upload to Weather Underground.
 
+<img width="580" height="320" alt="image" src="https://github.com/user-attachments/assets/7b323e9f-13d1-4aee-a689-d1126a162246" />
+
 ## Hardware Wiring
 
 You need to connect the ESP32 (e.g. ESP32-WROOM Dev Kit) to the CC1101 module using the SPI pins.
@@ -36,9 +38,11 @@ You need to connect the ESP32 (e.g. ESP32-WROOM Dev Kit) to the CC1101 module us
 The Davis Vantage Vue (US 915MHz model) transmits data using a Frequency Hopping Spread Spectrum (FHSS) protocol across 51 different channels. A packet is broadcast roughly every 2.56 seconds. 
 
 Since the CC1101 narrowband receiver can only listen to one frequency at a time, this ESP32 receiver uses a custom "chase and sync" algorithm:
-1. **Hunting Mode**:  Listen on a channel for 3 seconds, then steps *backward* to the previous channel. Moving backward while the transmitter moves forward  guarantees a collision (a captured packet) in a maximum of ~70 seconds.
+1. **Hunting Mode**:  Listen on a channel for 3 seconds, then steps *backward* to the previous channel. Moving backward while the transmitter moves forward  guarantees a collision (a captured packet) in a maximum of ~70 seconds. <img width="537" height="454" alt="image" src="https://github.com/user-attachments/assets/3f3bca42-7e96-44c5-9a83-e3a560918ff3" />
+
 2. **Sync Mode**: Once a packet is caught, the ESP32 calculates the next channel in the sequence, and waits for the next packet to arrive.
-3. **Coasting**: If RF interference causes a missed packet, the receiver will coast forward to the next channel on a schedule. If after a long period no data is captured it will return to hunting mode in order to resync with the transmitter.
+3. **Coasting**: If RF interference causes a missed packet, the receiver will coast forward to the next channel on a schedule. If after a long period no data is captured it will return to hunting mode in order to resync with the transmitter. <img width="628" height="286" alt="image" src="https://github.com/user-attachments/assets/d22f3eac-89d8-4f35-a7fa-3698b346bfd2" />
+
 
 ## Finding & Configuring Your Station ID
 
