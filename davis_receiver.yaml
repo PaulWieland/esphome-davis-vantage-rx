@@ -43,7 +43,7 @@ interval:
                   root["windDir"] = id(raw_wind_dir);
                   root["windGust_mph"] = id(davis_windgust).state;
                   if (!std::isnan(id(davis_rain).state)) root["dayRain_in"] = id(davis_rain).state;
-                  
+
                   // BME280 placeholders for the future
                   // root["inTemp_F"] = id(bme280_temp).state;
                   // root["inHumidity"] = id(bme280_humidity).state;
@@ -65,7 +65,7 @@ interval:
                   float dir = id(raw_wind_dir);
                   float gust = id(davis_windgust).state;
                   float rain = std::isnan(id(davis_rain).state) ? 0.0 : id(davis_rain).state;
-                  
+
                   sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&action=updateraw",
                           "${wu_station_id}", "${wu_password}",
                           temp, hum, wind, dir, gust, rain);
@@ -79,36 +79,36 @@ interval:
           static uint32_t expected_packet_time = 0;
           static uint32_t prev_last_packet_time = 0;
           uint32_t now = millis();
-          
+
           // Davis US 915MHz Frequency Table (51 Channels) in Hz!
           float us_hop_freqs[51] = {
-            911414000.0, 902382000.0, 911915000.0, 922953000.0, 914927000.0, 906396000.0, 925965000.0, 918438000.0, 
-            908905000.0, 920445000.0, 913420000.0, 903888000.0, 916934000.0, 924459000.0, 910410000.0, 904891000.0, 
-            915929000.0, 921448000.0, 907399000.0, 926968000.0, 912919000.0, 903385000.0, 917434000.0, 923456000.0, 
-            909407000.0, 926466000.0, 905895000.0, 914424000.0, 919441000.0, 924960000.0, 902885000.0, 910912000.0, 
-            921950000.0, 915428000.0, 906898000.0, 917936000.0, 927470000.0, 920947000.0, 908403000.0, 912417000.0, 
-            918940000.0, 904389000.0, 923957000.0, 916432000.0, 909909000.0, 919944000.0, 905392000.0, 922452000.0, 
+            911414000.0, 902382000.0, 911915000.0, 922953000.0, 914927000.0, 906396000.0, 925965000.0, 918438000.0,
+            908905000.0, 920445000.0, 913420000.0, 903888000.0, 916934000.0, 924459000.0, 910410000.0, 904891000.0,
+            915929000.0, 921448000.0, 907399000.0, 926968000.0, 912919000.0, 903385000.0, 917434000.0, 923456000.0,
+            909407000.0, 926466000.0, 905895000.0, 914424000.0, 919441000.0, 924960000.0, 902885000.0, 910912000.0,
+            921950000.0, 915428000.0, 906898000.0, 917936000.0, 927470000.0, 920947000.0, 908403000.0, 912417000.0,
+            918940000.0, 904389000.0, 923957000.0, 916432000.0, 909909000.0, 919944000.0, 905392000.0, 922452000.0,
             907901000.0, 913923000.0, 925462000.0
           };
-          
-          // Are we in SYNC mode? 
+
+          // Are we in SYNC mode?
           // 15 seconds gives us enough grace period to miss exactly 5 consecutive packets (due to RF interference on specific channels) without losing sync.
           if (now - id(last_packet_time) < 15000) {
-             
+
              // If a NEW packet was just received by the on_packet lambda, sync our expected timer to its exact arrival time.
              if (id(last_packet_time) != prev_last_packet_time) {
                 prev_last_packet_time = id(last_packet_time);
                 expected_packet_time = id(last_packet_time);
              }
-             
+
              // The Davis station hops every 2562ms.
              // If we wait 2562ms + a 50ms buffer and hear nothing, we missed it! Coast forward to the next channel.
              if (now - expected_packet_time > (2562 + 50)) {
                 id(hop_index) = (id(hop_index) + 1) % 51;
                 expected_packet_time += 2562; // Fast-forward our virtual timer
-                ESP_LOGW("davis_rf", "COASTING: Missed packet due to noise. Coasting forward to channel %d", id(hop_index));
+                ESP_LOGW("davis_rf", "COASTING: Missed packet. FFWD to channel %d", id(hop_index));
              }
-             
+
              // Tune the CC1101 to the correct channel
              if (current_freq_index != id(hop_index)) {
                 id(my_cc1101).set_frequency(us_hop_freqs[id(hop_index)]);
@@ -117,16 +117,16 @@ interval:
              }
              return;
           }
-          
+
           // HUNT MODE: Converging Sweep (Backward Hunt)
-          // Wait on the current channel for 3000ms. Since the transmitter moves forward every 2.56s, 
+          // Wait on the current channel for 3000ms. Since the transmitter moves forward every 2.56s,
           // moving backward ensures we collide with it twice as fast!
           if (now - channel_dwell_start >= 3000) {
              id(hop_index) = (id(hop_index) - 1 + 51) % 51;
              channel_dwell_start = now;
-             ESP_LOGD("davis_rf", "HUNTING: Converging backward to channel %d", id(hop_index));
+             ESP_LOGD("davis_rf", "HUNTING: Listening to channel %d", id(hop_index));
           }
-          
+
           // Tune to the target frequency if we aren't already on it
           if (current_freq_index != id(hop_index)) {
              id(my_cc1101).set_frequency(us_hop_freqs[id(hop_index)]);
@@ -191,18 +191,18 @@ cc1101:
   id: my_cc1101
   cs_pin: GPIO5
   gdo0_pin: GPIO4
-  
+
   # For North America (US), Davis uses frequency hopping around 915MHz (902-928MHz).
-  # We set the center frequency to 915MHz and use a wide filter bandwidth 
+  # We set the center frequency to 915MHz and use a wide filter bandwidth
   # to passively catch as many packets as possible without active hopping logic.
   frequency: 915.0MHz
-  
+
   modulation_type: GFSK
   symbol_rate: 19200
   fsk_deviation: 9.5kHz
   filter_bandwidth: 812kHz
   magn_target: 33dB
-  
+
   packet_mode: true
   packet_length: 8
   sync_mode: 16/16
@@ -211,7 +211,7 @@ cc1101:
   crc_enable: false
   whitening: false
   num_preamble: 2
-  
+
   # When a packet is received, process it here
   on_packet:
     then:
@@ -228,7 +228,7 @@ cc1101:
             d[i] = b;
           }
 
-          // 2. Robust rotation loop that handles bit-shifts perfectly 
+          // 2. Robust rotation loop that handles bit-shifts perfectly
           bool crc_ok = false;
           for (int shift = 0; shift < 3; shift++) {
             uint16_t crc = 0;
@@ -238,10 +238,10 @@ cc1101:
                 crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
               }
             }
-            
+
             uint16_t received_crc_1 = ((uint16_t)d[6] << 8) | d[7];
             uint16_t received_crc_2 = ((uint16_t)d[7] << 8) | d[6];
-            
+
             if (crc == received_crc_1 || crc == received_crc_2) {
               crc_ok = true;
               break;
@@ -255,7 +255,7 @@ cc1101:
             }
           }
 
-          if (!crc_ok) return; 
+          if (!crc_ok) return;
 
           // 3. Transmitter ID lock (Do this BEFORE sync so we don't accidentally follow a neighbor's station)
           uint8_t unit_id = d[0] & 0x07;
@@ -270,14 +270,14 @@ cc1101:
 
           // Synchronization Logic
           id(last_packet_time) = millis();
-          
-          // Smart Sync: Predict the next channel 
+
+          // Smart Sync: Predict the next channel
           id(hop_index) = (id(hop_index) + 1) % 51;
           ESP_LOGI("davis_rf", "SYNC: Next predicted channel is %d", id(hop_index));
 
           ESP_LOGI("davis_rf", "Valid packet received! Type: %d, Wind: %.1f mph", (int)(d[0] >> 4), (float)d[1]);
 
-          // Publish status 
+          // Publish status
           id(davis_battery_low).publish_state(battery_low);
           // id(davis_rssi).publish_state(rssi); // Optional, we can pull rssi from cc1101 component if needed
           // id(davis_lqi).publish_state(lqi);
@@ -285,7 +285,7 @@ cc1101:
           // Wind processing (bytes 1 and 2)
           float wind_mph = d[1];
           float wind_dir = d[2] * (360.0f / 255.0f);
-          
+
           if (wind_mph >= 0.0f && wind_mph < 160.0f) {
             id(davis_wind_speed).publish_state(wind_mph);
             if (std::isnan(id(davis_windgust).state)) {
@@ -392,14 +392,14 @@ text_sensor:
     lambda: |-
       float deg = id(raw_wind_dir);
       int index = int((deg + 11.25f) / 22.5f) % 16;
-      
+
       const char* compassPoints[] = {
         "N", "NNE", "NE", "ENE",
         "E", "ESE", "SE", "SSE",
         "S", "SSW", "SW", "WSW",
         "W", "WNW", "NW", "NNW"
       };
-      
-      char buffer[32]; 
+
+      char buffer[32];
       snprintf(buffer, sizeof(buffer), "%.0f° %s", deg, compassPoints[index]);
       return std::string(buffer);
