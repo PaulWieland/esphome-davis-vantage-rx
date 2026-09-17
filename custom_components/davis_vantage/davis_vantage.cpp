@@ -17,6 +17,17 @@ void DavisVantage::setup() {
 void DavisVantage::update() {
   if (!cc1101_) return;
 
+  if (region_ == "EU" || region_ == "UK" || region_ == "AU") {
+    // EU model only uses 5 channels clustered tightly together (868.07 - 868.55 MHz).
+    // By tuning to the center (868.3 MHz) with an 812kHz bandwidth, the CC1101 can
+    // passively capture all channels simultaneously without needing to hop!
+    if (current_freq_index_ != 999) {
+      cc1101_->set_frequency(868300000.0);
+      current_freq_index_ = 999;
+    }
+    return;
+  }
+
   uint32_t now = millis();
 
   // Are we in SYNC mode?
@@ -121,11 +132,14 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
   // Wind processing
   float wind_mph = d[1];
   float wind_dir = d[2] * (360.0f / 255.0f);
+  
+  float wind_speed_val = wind_mph;
+  if (metric_) wind_speed_val = wind_mph * 1.60934f; // mph to km/h
 
   if (wind_mph >= 0.0f && wind_mph < 160.0f) {
-    if (wind_speed_sensor_) wind_speed_sensor_->publish_state(wind_mph);
+    if (wind_speed_sensor_) wind_speed_sensor_->publish_state(wind_speed_val);
     if (wind_gust_sensor_ && std::isnan(wind_gust_sensor_->state)) {
-      wind_gust_sensor_->publish_state(wind_mph);
+      wind_gust_sensor_->publish_state(wind_speed_val);
     }
   }
   
@@ -148,14 +162,18 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
   if (ptype == 8) {
     uint16_t raw = ((uint16_t)d[3] << 8) | d[4];
     float temp_f = raw / 160.0f;
+    float temp_val = temp_f;
+    if (metric_) temp_val = (temp_f - 32.0f) * 5.0f / 9.0f; // F to C
     if (temp_f > -40.0f && temp_f < 140.0f) {
-      if (temp_sensor_) temp_sensor_->publish_state(temp_f);
+      if (temp_sensor_) temp_sensor_->publish_state(temp_val);
       ESP_LOGI(TAG, "Weather Update - Temperature: %.1f F", temp_f);
     }
   } else if (ptype == 9) {
     float gust_mph = d[3];
+    float gust_val = gust_mph;
+    if (metric_) gust_val = gust_mph * 1.60934f; // mph to km/h
     if (gust_mph >= 0.0f && gust_mph < 200.0f) {
-      if (wind_gust_sensor_) wind_gust_sensor_->publish_state(gust_mph);
+      if (wind_gust_sensor_) wind_gust_sensor_->publish_state(gust_val);
     }
   } else if (ptype == 10) {
     uint16_t raw = (((uint16_t)(d[4] >> 4) & 0x03) << 8) | d[3];
@@ -171,7 +189,9 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
       if (delta < 0) delta += 128;
       if (delta > 0 && delta < 10) {
         rain_total_in_ += delta * 0.01f;
-        if (rain_sensor_) rain_sensor_->publish_state(rain_total_in_);
+        float rain_val = rain_total_in_;
+        if (metric_) rain_val = rain_total_in_ * 25.4f; // in to mm
+        if (rain_sensor_) rain_sensor_->publish_state(rain_val);
       }
     }
     rain_count_prev_ = tips;

@@ -17,6 +17,8 @@ class DavisVantage : public PollingComponent {
  public:
   void set_cc1101(cc1101::CC1101Component *cc) { cc1101_ = cc; }
   void set_unit_id(int unit_id) { known_unit_id_ = unit_id; }
+  void set_region(std::string region) { region_ = region; }
+  void set_metric(bool metric) { metric_ = metric; }
   
   void set_temperature_sensor(sensor::Sensor *s) { temp_sensor_ = s; }
   void set_humidity_sensor(sensor::Sensor *s) { hum_sensor_ = s; }
@@ -45,6 +47,8 @@ class DavisVantage : public PollingComponent {
   binary_sensor::BinarySensor *battery_sensor_{nullptr};
   text_sensor::TextSensor *wind_dir_sensor_{nullptr};
 
+  std::string region_{"US"};
+  bool metric_{false};
   int known_unit_id_{0};
   int current_freq_index_{-1};
   int hop_index_{0};

@@ -82,3 +82,31 @@ To do so, open `davis_receiver.yaml` and comment out or delete the corresponding
 1. Comment out the `mqtt:` or `http_request:` setup block at the top of the file.
 2. Comment out the corresponding `- interval:` action block inside the `interval:` component. 
 *(Be careful not to delete the core `- interval: 30ms` radio tuning loop at the very bottom!)*
+
+### European (EU/UK/AU) and Metric Support
+
+The custom component natively supports both North American (NA) and European/International (EU/UK/AU) frequencies, as well as metric unit conversions.
+
+* **NA/US Frequencies:** Transmits over 51 channels across the 902-928 MHz spectrum. The receiver employs a fast-hopping "coast and hunt" algorithm to track the station.
+* **EU/UK/AU Frequencies:** Transmits over 5 channels clustered very tightly around 868.3 MHz. For these regions, the ESP32 disables hopping completely and uses a wide 812kHz filter bandwidth to passively capture all 5 channels simultaneously.
+
+To configure your region and output units, simply set the variables in the `davis_vantage:` block:
+
+```yaml
+# In davis_receiver.yaml
+cc1101:
+  # Remember to update the CC1101 base frequency for your region:
+  # US/NA: 915.0MHz
+  # EU/UK/AU: 868.3MHz
+  frequency: 915.0MHz
+  # ...
+
+davis_vantage:
+  id: my_davis
+  cc1101_id: my_cc1101
+  unit_id: 0
+  region: "US"      # Set to "EU", "UK", or "AU" for European frequencies
+  metric: false     # Set to true to output °C, km/h, and mm
+```
+
+If you set `metric: true`, be sure to also update your `unit_of_measurement` fields in the `sensor:` block so Home Assistant displays them correctly (e.g. `unit_of_measurement: "°C"`).
