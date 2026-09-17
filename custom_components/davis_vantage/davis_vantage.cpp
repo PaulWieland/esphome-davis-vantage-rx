@@ -17,6 +17,18 @@ void DavisVantage::setup() {
 void DavisVantage::update() {
   if (!cc1101_) return;
 
+  uint32_t now = millis();
+  if (rain_rate_sensor_ && current_freq_index_ != -1) {
+    static uint32_t last_rate_update = 0;
+    if (now - last_rate_update > 60000) {
+       last_rate_update = now;
+       if (now - last_tip_time_ > 900000 && current_rain_rate_in_ > 0.0f) {
+           current_rain_rate_in_ = 0.0f;
+           rain_rate_sensor_->publish_state(0.0f);
+       }
+    }
+  }
+
   if (region_ == "ROW") {
     // ROW models only use 5 channels clustered tightly together (868.07 - 868.55 MHz).
     // By tuning to the center (868.3 MHz) with an 812kHz bandwidth, the CC1101 can
@@ -27,8 +39,6 @@ void DavisVantage::update() {
     }
     return;
   }
-
-  uint32_t now = millis();
 
   // Are we in SYNC mode?
   if (now - last_packet_time_ < 15000) {
@@ -188,10 +198,26 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
       int delta = tips - rain_count_prev_;
       if (delta < 0) delta += 128;
       if (delta > 0 && delta < 10) {
+        uint32_t now = millis();
+        if (last_tip_time_ > 0 && now > last_tip_time_) {
+           float diff_sec = (now - last_tip_time_) / 1000.0f;
+           float tips_per_sec = delta / diff_sec;
+           current_rain_rate_in_ = tips_per_sec * 3600.0f * 0.01f;
+        } else {
+           current_rain_rate_in_ = 0.0f;
+        }
+        last_tip_time_ = now;
+
         rain_total_in_ += delta * 0.01f;
         float rain_val = rain_total_in_;
         if (metric_) rain_val = rain_total_in_ * 25.4f; // in to mm
         if (rain_sensor_) rain_sensor_->publish_state(rain_val);
+        
+        if (rain_rate_sensor_) {
+           float rate_val = current_rain_rate_in_;
+           if (metric_) rate_val = current_rain_rate_in_ * 25.4f; // in/h to mm/h
+           rain_rate_sensor_->publish_state(rate_val);
+        }
       }
     }
     rain_count_prev_ = tips;

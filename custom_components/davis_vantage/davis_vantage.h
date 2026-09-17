@@ -25,6 +25,11 @@ class DavisVantage : public PollingComponent {
   void set_wind_speed_sensor(sensor::Sensor *s) { wind_speed_sensor_ = s; }
   void set_wind_gust_sensor(sensor::Sensor *s) { wind_gust_sensor_ = s; }
   void set_daily_rain_sensor(sensor::Sensor *s) { rain_sensor_ = s; }
+  void set_rain_rate_sensor(sensor::Sensor *s) { rain_rate_sensor_ = s; }
+  float get_rain_rate_in() {
+    if (millis() - last_tip_time_ > 900000) return 0.0f;
+    return current_rain_rate_in_;
+  }
   void set_battery_sensor(binary_sensor::BinarySensor *s) { battery_sensor_ = s; }
   void set_wind_dir_sensor(text_sensor::TextSensor *s) { wind_dir_sensor_ = s; }
 
@@ -44,6 +49,9 @@ class DavisVantage : public PollingComponent {
   sensor::Sensor *wind_speed_sensor_{nullptr};
   sensor::Sensor *wind_gust_sensor_{nullptr};
   sensor::Sensor *rain_sensor_{nullptr};
+  sensor::Sensor *rain_rate_sensor_{nullptr};
+  uint32_t last_tip_time_{0};
+  float current_rain_rate_in_{0.0f};
   binary_sensor::BinarySensor *battery_sensor_{nullptr};
   text_sensor::TextSensor *wind_dir_sensor_{nullptr};
 

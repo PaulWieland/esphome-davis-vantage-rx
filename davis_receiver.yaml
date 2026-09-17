@@ -149,6 +149,7 @@ interval:
                   root["windDir"] = id(my_davis).get_wind_dir_degrees();
                   root["windGust_mph"] = id(davis_windgust).state;
                   if (!std::isnan(id(davis_rain).state)) root["dayRain_in"] = id(davis_rain).state;
+                  root["rainRate_in_per_hr"] = id(my_davis).get_rain_rate_in();
 
   # --- OPTIONAL: WUNDERGROUND PUBLISH INTERVAL ---
   - interval: 60s
@@ -166,8 +167,9 @@ interval:
                   float dir = id(my_davis).get_wind_dir_degrees();
                   float gust = id(davis_windgust).state;
                   float rain = std::isnan(id(davis_rain).state) ? 0.0 : id(davis_rain).state;
+                  float rain_rate = id(my_davis).get_rain_rate_in();
                   
-                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&action=updateraw",
+                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&rainin=%.2f&action=updateraw",
                           "${wu_station_id}", "${wu_password}",
-                          temp, hum, wind, dir, gust, rain);
+                          temp, hum, wind, dir, gust, rain, rain_rate);
                   return std::string(url);
