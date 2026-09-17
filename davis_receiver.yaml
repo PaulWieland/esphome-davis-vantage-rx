@@ -13,6 +13,11 @@ esp32:
   framework:
     type: arduino
 
+external_components:
+  - source:
+      type: local
+      path: custom_components
+
 
 # --- OPTIONAL: MQTT BROADCAST ---
 mqtt:
@@ -24,114 +29,6 @@ mqtt:
 http_request:
   useragent: "ESPHome Davis Receiver"
   timeout: 10s
-
-interval:
-  # --- OPTIONAL: MQTT PUBLISH INTERVAL ---
-  - interval: 30s
-    then:
-      - if:
-          condition:
-            - lambda: "return id(davis_temp).has_state();"
-          then:
-            - mqtt.publish_json:
-                topic: "weather/loop"
-                payload: |-
-                  root["outTemp_F"] = id(davis_temp).state;
-                  root["outHumidity"] = id(davis_hum).state;
-                  root["windSpeed_mph"] = id(davis_wind_speed).state;
-                  root["windSpeed10_mph"] = id(davis_wind_speed).state;
-                  root["windDir"] = id(raw_wind_dir);
-                  root["windGust_mph"] = id(davis_windgust).state;
-                  if (!std::isnan(id(davis_rain).state)) root["dayRain_in"] = id(davis_rain).state;
-
-                  // BME280 placeholders for the future
-                  // root["inTemp_F"] = id(bme280_temp).state;
-                  // root["inHumidity"] = id(bme280_humidity).state;
-                  // root["barometer"] = id(bme280_pressure).state;
-
-  # --- OPTIONAL: WUNDERGROUND PUBLISH INTERVAL ---
-  - interval: 60s
-    then:
-      - if:
-          condition:
-            - lambda: "return id(davis_temp).has_state();"
-          then:
-            - http_request.get:
-                url: !lambda |-
-                  char url[300];
-                  float temp = id(davis_temp).state;
-                  float hum = id(davis_hum).state;
-                  float wind = id(davis_wind_speed).state;
-                  float dir = id(raw_wind_dir);
-                  float gust = id(davis_windgust).state;
-                  float rain = std::isnan(id(davis_rain).state) ? 0.0 : id(davis_rain).state;
-
-                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&action=updateraw",
-                          "${wu_station_id}", "${wu_password}",
-                          temp, hum, wind, dir, gust, rain);
-                  return std::string(url);
-
-  - interval: 30ms
-    then:
-      - lambda: |-
-          static int current_freq_index = -1;
-          static uint32_t channel_dwell_start = 0;
-          static uint32_t expected_packet_time = 0;
-          static uint32_t prev_last_packet_time = 0;
-          uint32_t now = millis();
-
-          // Davis US 915MHz Frequency Table (51 Channels) in Hz!
-          float us_hop_freqs[51] = {
-            911414000.0, 902382000.0, 911915000.0, 922953000.0, 914927000.0, 906396000.0, 925965000.0, 918438000.0,
-            908905000.0, 920445000.0, 913420000.0, 903888000.0, 916934000.0, 924459000.0, 910410000.0, 904891000.0,
-            915929000.0, 921448000.0, 907399000.0, 926968000.0, 912919000.0, 903385000.0, 917434000.0, 923456000.0,
-            909407000.0, 926466000.0, 905895000.0, 914424000.0, 919441000.0, 924960000.0, 902885000.0, 910912000.0,
-            921950000.0, 915428000.0, 906898000.0, 917936000.0, 927470000.0, 920947000.0, 908403000.0, 912417000.0,
-            918940000.0, 904389000.0, 923957000.0, 916432000.0, 909909000.0, 919944000.0, 905392000.0, 922452000.0,
-            907901000.0, 913923000.0, 925462000.0
-          };
-
-          // Are we in SYNC mode?
-          // 15 seconds gives us enough grace period to miss exactly 5 consecutive packets (due to RF interference on specific channels) without losing sync.
-          if (now - id(last_packet_time) < 15000) {
-
-             // If a NEW packet was just received by the on_packet lambda, sync our expected timer to its exact arrival time.
-             if (id(last_packet_time) != prev_last_packet_time) {
-                prev_last_packet_time = id(last_packet_time);
-                expected_packet_time = id(last_packet_time);
-             }
-
-             // The Davis station hops every 2562ms.
-             // If we wait 2562ms + a 50ms buffer and hear nothing, we missed it! Coast forward to the next channel.
-             if (now - expected_packet_time > (2562 + 50)) {
-                id(hop_index) = (id(hop_index) + 1) % 51;
-                expected_packet_time += 2562; // Fast-forward our virtual timer
-                ESP_LOGW("davis_rf", "COASTING: Missed packet. FFWD to channel %d", id(hop_index));
-             }
-
-             // Tune the CC1101 to the correct channel
-             if (current_freq_index != id(hop_index)) {
-                id(my_cc1101).set_frequency(us_hop_freqs[id(hop_index)]);
-                current_freq_index = id(hop_index);
-                channel_dwell_start = now; // Reset dwell timer so we don't instantly hop if we eventually lose sync
-             }
-             return;
-          }
-
-          // HUNT MODE: Converging Sweep (Backward Hunt)
-          // Wait on the current channel for 3000ms. Since the transmitter moves forward every 2.56s,
-          // moving backward ensures we collide with it twice as fast!
-          if (now - channel_dwell_start >= 3000) {
-             id(hop_index) = (id(hop_index) - 1 + 51) % 51;
-             channel_dwell_start = now;
-             ESP_LOGD("davis_rf", "HUNTING: Listening to channel %d", id(hop_index));
-          }
-
-          // Tune to the target frequency if we aren't already on it
-          if (current_freq_index != id(hop_index)) {
-             id(my_cc1101).set_frequency(us_hop_freqs[id(hop_index)]);
-             current_freq_index = id(hop_index);
-          }
 
 # Enable logging to see the data in the console
 logger:
@@ -162,47 +59,22 @@ spi:
   mosi_pin: GPIO23
   miso_pin: GPIO19
 
-globals:
-  - id: hop_index
-    type: int
-    initial_value: '0'
-  - id: last_packet_time
-    type: uint32_t
-    initial_value: '4294900000'
-  - id: rain_count_prev
-    type: int
-    initial_value: '-1'
-  - id: rain_total_in
-    type: float
-    initial_value: '0.0'
-  - id: raw_wind_dir
-    type: float
-    initial_value: '0.0'
-  - id: known_unit_id
-    type: int
-    initial_value: '0'
-
 # CC1101 Component Setup
 # NOTE: VCC -> 3.3V (DO NOT USE 5V)
 # GND -> GND
 # CSN -> GPIO5
 # GDO0 -> GPIO4
+
 cc1101:
   id: my_cc1101
   cs_pin: GPIO5
   gdo0_pin: GPIO4
-
-  # For North America (US), Davis uses frequency hopping around 915MHz (902-928MHz).
-  # We set the center frequency to 915MHz and use a wide filter bandwidth
-  # to passively catch as many packets as possible without active hopping logic.
   frequency: 915.0MHz
-
   modulation_type: GFSK
   symbol_rate: 19200
   fsk_deviation: 9.5kHz
   filter_bandwidth: 812kHz
   magn_target: 33dB
-
   packet_mode: true
   packet_length: 8
   sync_mode: 16/16
@@ -211,195 +83,91 @@ cc1101:
   crc_enable: false
   whitening: false
   num_preamble: 2
-
-  # When a packet is received, process it here
   on_packet:
     then:
-      - lambda: |-
-          if (x.size() < 8) return;
+      - lambda: "id(my_davis).process_packet(x);"
 
-          // 1. Bit-reversal (LSB to MSB mapping)
-          std::vector<uint8_t> d(8);
-          for (int i = 0; i < 8; i++) {
-            uint8_t b = x[i];
-            b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-            b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-            b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-            d[i] = b;
-          }
-
-          // 2. Robust rotation loop that handles bit-shifts perfectly
-          bool crc_ok = false;
-          for (int shift = 0; shift < 3; shift++) {
-            uint16_t crc = 0;
-            for (int i = 0; i < 6; i++) {
-              crc ^= (uint16_t)d[i] << 8;
-              for (int j = 0; j < 8; j++) {
-                crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
-              }
-            }
-
-            uint16_t received_crc_1 = ((uint16_t)d[6] << 8) | d[7];
-            uint16_t received_crc_2 = ((uint16_t)d[7] << 8) | d[6];
-
-            if (crc == received_crc_1 || crc == received_crc_2) {
-              crc_ok = true;
-              break;
-            }
-
-            uint8_t carry = 0;
-            for (int i = 0; i < 8; i++) {
-              uint8_t next_carry = (d[i] & 0x01) << 7;
-              d[i] = (d[i] >> 1) | carry;
-              carry = next_carry;
-            }
-          }
-
-          if (!crc_ok) return;
-
-          // 3. Transmitter ID lock (Do this BEFORE sync so we don't accidentally follow a neighbor's station)
-          uint8_t unit_id = d[0] & 0x07;
-          bool battery_low = (d[0] & 0x08) != 0;
-
-          if (id(known_unit_id) < 0) {
-            id(known_unit_id) = unit_id;
-            ESP_LOGW("davis_rf", "Station ID successfully locked onto: %d", unit_id);
-          } else if (unit_id != id(known_unit_id)) {
-            return; // Ignore packets from other transmitters
-          }
-
-          // Synchronization Logic
-          id(last_packet_time) = millis();
-
-          // Smart Sync: Predict the next channel
-          id(hop_index) = (id(hop_index) + 1) % 51;
-          ESP_LOGI("davis_rf", "SYNC: Next predicted channel is %d", id(hop_index));
-
-          ESP_LOGI("davis_rf", "Valid packet received! Type: %d, Wind: %.1f mph", (int)(d[0] >> 4), (float)d[1]);
-
-          // Publish status
-          id(davis_battery_low).publish_state(battery_low);
-          // id(davis_rssi).publish_state(rssi); // Optional, we can pull rssi from cc1101 component if needed
-          // id(davis_lqi).publish_state(lqi);
-
-          // Wind processing (bytes 1 and 2)
-          float wind_mph = d[1];
-          float wind_dir = d[2] * (360.0f / 255.0f);
-
-          if (wind_mph >= 0.0f && wind_mph < 160.0f) {
-            id(davis_wind_speed).publish_state(wind_mph);
-            if (std::isnan(id(davis_windgust).state)) {
-              id(davis_windgust).publish_state(wind_mph);
-            }
-          }
-          if (wind_dir >= 0.0f && wind_dir <= 360.0f) {
-            id(raw_wind_dir) = wind_dir;
-            id(davis_wind_dir_combined).update();
-          }
-
-          // Parse packet types
-          uint8_t ptype = d[0] >> 4;
-          if (ptype == 8) {
-            // Outside Temperature
-            uint16_t raw = ((uint16_t)d[3] << 8) | d[4];
-            float temp_f = raw / 160.0f;
-            if (temp_f > -40.0f && temp_f < 140.0f) {
-              id(davis_temp).publish_state(temp_f);
-              ESP_LOGI("davis_rf", "Weather Update - Temperature: %.1f F", temp_f);
-            }
-          } else if (ptype == 9) {
-            // Wind Gust
-            float gust_mph = d[3];
-            if (gust_mph >= 0.0f && gust_mph < 200.0f) id(davis_windgust).publish_state(gust_mph);
-          } else if (ptype == 10) {
-            // Humidity
-            uint16_t raw = (((uint16_t)(d[4] >> 4) & 0x03) << 8) | d[3];
-            float hum = raw / 10.0f;
-            if (hum > 0.0f && hum <= 100.0f) {
-              id(davis_hum).publish_state(hum);
-              ESP_LOGI("davis_rf", "Weather Update - Humidity: %.0f%%", hum);
-            }
-          } else if (ptype == 14) {
-            // Rainfall (Rain clicks)
-            int tips = ((int)d[3] + (((int)d[4] >> 7) << 8)) & 0x7F;
-            if (id(rain_count_prev) >= 0) {
-              int delta = tips - id(rain_count_prev);
-              if (delta < 0) delta += 128;
-              if (delta > 0 && delta < 10) {
-                id(rain_total_in) += delta * 0.01f;
-                id(davis_rain).publish_state(id(rain_total_in));
-              }
-            }
-            id(rain_count_prev) = tips;
-          }
-
-binary_sensor:
-  - platform: template
-    name: "Battery Low"
-    id: davis_battery_low
-    device_class: battery
+# Clean Davis Vantage Custom Component
+davis_vantage:
+  id: my_davis
+  cc1101_id: my_cc1101
+  unit_id: 0
 
 sensor:
-  - platform: template
-    name: "Temperature"
-    id: davis_temp
-    unit_of_measurement: "°F"
-    device_class: temperature
-    state_class: measurement
-    accuracy_decimals: 1
+  - platform: davis_vantage
+    davis_vantage_id: my_davis
+    temperature:
+      name: "Temperature"
+      id: davis_temp
+    humidity:
+      name: "Humidity"
+      id: davis_hum
+    wind_speed:
+      name: "Wind Speed"
+      id: davis_wind_speed
+      filters:
+        - sliding_window_moving_average:
+            window_size: 5
+            send_every: 1
+    wind_gust:
+      name: "Wind Gust"
+      id: davis_windgust
+    daily_rain:
+      name: "Daily Rain"
+      id: davis_rain
 
-  - platform: template
-    name: "Humidity"
-    id: davis_hum
-    unit_of_measurement: "%"
-    device_class: humidity
-    state_class: measurement
-    accuracy_decimals: 0
-
-  - platform: template
-    name: "Wind Speed"
-    id: davis_wind_speed
-    unit_of_measurement: "mph"
-    device_class: wind_speed
-    state_class: measurement
-    accuracy_decimals: 1
-    filters:
-      - sliding_window_moving_average:
-          window_size: 5
-          send_every: 1
-
-  - platform: template
-    name: "Wind Gust"
-    id: davis_windgust
-    unit_of_measurement: "mph"
-    device_class: wind_speed
-    state_class: measurement
-    accuracy_decimals: 1
-
-  - platform: template
-    name: "Daily Rain"
-    id: davis_rain
-    unit_of_measurement: "in"
-    device_class: precipitation
-    state_class: total_increasing
-    accuracy_decimals: 2
+binary_sensor:
+  - platform: davis_vantage
+    davis_vantage_id: my_davis
+    battery_low:
+      name: "Battery Low"
+      id: davis_battery_low
 
 text_sensor:
-  - platform: template
-    name: "Wind Direction"
-    id: davis_wind_dir_combined
-    icon: "mdi:compass-outline"
-    lambda: |-
-      float deg = id(raw_wind_dir);
-      int index = int((deg + 11.25f) / 22.5f) % 16;
+  - platform: davis_vantage
+    davis_vantage_id: my_davis
+    wind_direction:
+      name: "Wind Direction"
+      id: davis_wind_dir_combined
 
-      const char* compassPoints[] = {
-        "N", "NNE", "NE", "ENE",
-        "E", "ESE", "SE", "SSE",
-        "S", "SSW", "SW", "WSW",
-        "W", "WNW", "NW", "NNW"
-      };
 
-      char buffer[32];
-      snprintf(buffer, sizeof(buffer), "%.0f° %s", deg, compassPoints[index]);
-      return std::string(buffer);
+interval:
+  # --- OPTIONAL: MQTT PUBLISH INTERVAL ---
+  - interval: 30s
+    then:
+      - if:
+          condition:
+            - lambda: "return id(davis_temp).has_state();"
+          then:
+            - mqtt.publish_json:
+                topic: "weather/loop"
+                payload: |-
+                  root["outTemp_F"] = id(davis_temp).state;
+                  root["outHumidity"] = id(davis_hum).state;
+                  root["windSpeed_mph"] = id(davis_wind_speed).state;
+                  root["windSpeed10_mph"] = id(davis_wind_speed).state;
+                  root["windDir"] = id(my_davis).get_wind_dir_degrees();
+                  root["windGust_mph"] = id(davis_windgust).state;
+                  if (!std::isnan(id(davis_rain).state)) root["dayRain_in"] = id(davis_rain).state;
+
+  # --- OPTIONAL: WUNDERGROUND PUBLISH INTERVAL ---
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            - lambda: "return id(davis_temp).has_state();"
+          then:
+            - http_request.get:
+                url: !lambda |-
+                  char url[300];
+                  float temp = id(davis_temp).state;
+                  float hum = id(davis_hum).state;
+                  float wind = id(davis_wind_speed).state;
+                  float dir = id(my_davis).get_wind_dir_degrees();
+                  float gust = id(davis_windgust).state;
+                  float rain = std::isnan(id(davis_rain).state) ? 0.0 : id(davis_rain).state;
+                  
+                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&action=updateraw",
+                          "${wu_station_id}", "${wu_password}",
+                          temp, hum, wind, dir, gust, rain);
+                  return std::string(url);
