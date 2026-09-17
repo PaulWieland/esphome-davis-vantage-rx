@@ -47,7 +47,7 @@ class DavisVantage : public PollingComponent {
   binary_sensor::BinarySensor *battery_sensor_{nullptr};
   text_sensor::TextSensor *wind_dir_sensor_{nullptr};
 
-  std::string region_{"US"};
+  std::string region_{"NA"};
   bool metric_{false};
   int known_unit_id_{0};
   int current_freq_index_{-1};
@@ -61,8 +61,8 @@ class DavisVantage : public PollingComponent {
   float rain_total_in_{0.0f};
   float raw_wind_dir_{0.0f};
 
-  // US frequencies
-  float us_hop_freqs[51] = {
+  // NA frequencies
+  float na_hop_freqs[51] = {
     911414000.0, 902382000.0, 911915000.0, 922953000.0, 914927000.0, 906396000.0, 925965000.0, 918438000.0, 
     908905000.0, 920445000.0, 913420000.0, 903888000.0, 916934000.0, 924459000.0, 910410000.0, 904891000.0, 
     915929000.0, 921448000.0, 907399000.0, 926968000.0, 912919000.0, 903385000.0, 917434000.0, 923456000.0, 

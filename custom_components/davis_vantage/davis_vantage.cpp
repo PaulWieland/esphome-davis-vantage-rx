@@ -17,8 +17,8 @@ void DavisVantage::setup() {
 void DavisVantage::update() {
   if (!cc1101_) return;
 
-  if (region_ == "EU" || region_ == "UK" || region_ == "AU") {
-    // EU model only uses 5 channels clustered tightly together (868.07 - 868.55 MHz).
+  if (region_ == "ROW") {
+    // ROW models only use 5 channels clustered tightly together (868.07 - 868.55 MHz).
     // By tuning to the center (868.3 MHz) with an 812kHz bandwidth, the CC1101 can
     // passively capture all channels simultaneously without needing to hop!
     if (current_freq_index_ != 999) {
@@ -48,7 +48,7 @@ void DavisVantage::update() {
 
     // Tune
     if (current_freq_index_ != hop_index_) {
-      cc1101_->set_frequency(us_hop_freqs[hop_index_]);
+      cc1101_->set_frequency(na_hop_freqs[hop_index_]);
       current_freq_index_ = hop_index_;
       channel_dwell_start_ = now;
     }
@@ -63,7 +63,7 @@ void DavisVantage::update() {
   }
 
   if (current_freq_index_ != hop_index_) {
-    cc1101_->set_frequency(us_hop_freqs[hop_index_]);
+    cc1101_->set_frequency(na_hop_freqs[hop_index_]);
     current_freq_index_ = hop_index_;
   }
 }
