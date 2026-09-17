@@ -83,9 +83,9 @@ To do so, open `davis_receiver.yaml` and comment out or delete the corresponding
 2. Comment out the corresponding `- interval:` action block inside the `interval:` component. 
 *(Be careful not to delete the core `- interval: 30ms` radio tuning loop at the very bottom!)*
 
-### Regional Frequencies (NA vs ROW) and Metric Support
+### Regionalization
 
-Both North American (NA) and ROW (European/International (EU/UK/AU)) frequencies are supported, as well as metric unit conversions.
+Both North American (NA) and ROW (European/International (EU/UK/AU)) frequencies are supported, as well as imperial or metric units.
 
 * **NA (North America) Frequencies:** Transmits over 51 channels across the 902-928 MHz spectrum. The receiver employs a fast-hopping "coast and hunt" algorithm to track the station.
 * **ROW (EU/UK/AU) Frequencies:** Transmits over 5 channels around 868.3 MHz. For these regions, disable hopping and use a wide 812kHz filter bandwidth to capture all 5 channels.
