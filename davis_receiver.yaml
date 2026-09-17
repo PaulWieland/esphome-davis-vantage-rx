@@ -115,6 +115,9 @@ sensor:
     daily_rain:
       name: "Daily Rain"
       id: davis_rain
+    rain_rate:
+      name: "Rain Rate"
+      id: davis_rain_rate
 
 binary_sensor:
   - platform: davis_vantage
