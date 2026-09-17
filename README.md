@@ -21,7 +21,7 @@ You need to connect the ESP32 (e.g. ESP32-WROOM Dev Kit) to the CC1101 module us
 | **GDO0** | **GPIO 4** | Data / Interrupt Pin |
 | **GDO2** | *Not Connected* | Leave disconnected |
 
-*Note: Ensure you are using an antenna suitable for 915MHz (US) for the best reception. The standard small coiled antennas included with generic CC1101 modules may have very limited range.*
+*Note: Ensure you are using an antenna suitable for 915MHz (NA) for the best reception. The standard small coiled antennas included with generic CC1101 modules may have very limited range.*
 
 ## Setup Instructions
 
@@ -35,7 +35,7 @@ You need to connect the ESP32 (e.g. ESP32-WROOM Dev Kit) to the CC1101 module us
 
 ## Frequency Hopping & Synchronization
 
-The Davis Vantage Vue (US 915MHz model) transmits data using a Frequency Hopping Spread Spectrum (FHSS) protocol across 51 different channels. A packet is broadcast roughly every 2.56 seconds. 
+The Davis Vantage Vue (NA 915MHz model) transmits data using a Frequency Hopping Spread Spectrum (FHSS) protocol across 51 different channels. A packet is broadcast roughly every 2.56 seconds. 
 
 Since the CC1101 narrowband receiver can only listen to one frequency at a time, this ESP32 receiver uses a custom "chase and sync" algorithm:
 1. **Hunting Mode**:  Listen on a channel for 3 seconds, then steps *backward* to the previous channel. Moving backward while the transmitter moves forward  guarantees a collision (a captured packet) in a maximum of ~70 seconds. <br /> <img width="537" height="454" alt="image" src="https://github.com/user-attachments/assets/3f3bca42-7e96-44c5-9a83-e3a560918ff3" />
@@ -82,3 +82,31 @@ To do so, open `davis_receiver.yaml` and comment out or delete the corresponding
 1. Comment out the `mqtt:` or `http_request:` setup block at the top of the file.
 2. Comment out the corresponding `- interval:` action block inside the `interval:` component. 
 *(Be careful not to delete the core `- interval: 30ms` radio tuning loop at the very bottom!)*
+
+### Regionalization
+
+Both North American (NA) and ROW (European/International (EU/UK/AU)) frequencies are supported, as well as imperial or metric units.
+
+* **NA (North America) Frequencies:** Transmits over 51 channels across the 902-928 MHz spectrum. The receiver employs a fast-hopping "coast and hunt" algorithm to track the station.
+* **ROW (EU/UK/AU) Frequencies:** Transmits over 5 channels around 868.3 MHz. For these regions, disable hopping and use a wide 812kHz filter bandwidth to capture all 5 channels.
+
+To configure your region and output units, set the variables in the `davis_vantage:` block:
+
+```yaml
+# In davis_receiver.yaml
+cc1101:
+  # Remember to update the CC1101 base frequency for your region:
+  # NA: 915.0MHz
+  # ROW: 868.3MHz
+  frequency: 915.0MHz
+  # ...
+
+davis_vantage:
+  id: my_davis
+  cc1101_id: my_cc1101
+  unit_id: 0
+  region: "NA"      # Set to "ROW" for European/International (868MHz) frequencies
+  metric: false     # Set to true to output °C, km/h, and mm
+```
+
+If you set `metric: true`, be sure to also update your `unit_of_measurement` fields in the `sensor:` block so they are displayed correctly (e.g. `unit_of_measurement: "°C"`).
