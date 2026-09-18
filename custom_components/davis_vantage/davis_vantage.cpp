@@ -141,6 +141,7 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
 
   // Wind processing
   float wind_mph = d[1];
+  current_wind_mph_ = wind_mph;
   float wind_dir = d[2] * (360.0f / 255.0f);
   
   float wind_speed_val = wind_mph;
@@ -172,14 +173,26 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
   if (ptype == 8) {
     uint16_t raw = ((uint16_t)d[3] << 8) | d[4];
     float temp_f = raw / 160.0f;
+    current_temp_f_ = temp_f;
     float temp_val = temp_f;
     if (metric_) temp_val = (temp_f - 32.0f) * 5.0f / 9.0f; // F to C
     if (temp_f > -40.0f && temp_f < 140.0f) {
       if (temp_sensor_) temp_sensor_->publish_state(temp_val);
       ESP_LOGI(TAG, "Weather Update - Temperature: %.1f F", temp_f);
     }
+    
+    // Attempt to publish dew point if we have valid temp and humidity
+    if (dew_point_sensor_) {
+      float dew_f = get_dew_point_f();
+      if (dew_f != 0.0f) {
+        float dew_val = dew_f;
+        if (metric_) dew_val = (dew_f - 32.0f) * 5.0f / 9.0f;
+        dew_point_sensor_->publish_state(dew_val);
+      }
+    }
   } else if (ptype == 9) {
     float gust_mph = d[3];
+    current_gust_mph_ = gust_mph;
     float gust_val = gust_mph;
     if (metric_) gust_val = gust_mph * 1.60934f; // mph to km/h
     if (gust_mph >= 0.0f && gust_mph < 200.0f) {
@@ -188,9 +201,20 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
   } else if (ptype == 10) {
     uint16_t raw = (((uint16_t)(d[4] >> 4) & 0x03) << 8) | d[3];
     float hum = raw / 10.0f;
+    current_hum_ = hum;
     if (hum > 0.0f && hum <= 100.0f) {
       if (hum_sensor_) hum_sensor_->publish_state(hum);
       ESP_LOGI(TAG, "Weather Update - Humidity: %.0f%%", hum);
+    }
+    
+    // Attempt to publish dew point if we have valid temp and humidity
+    if (dew_point_sensor_) {
+      float dew_f = get_dew_point_f();
+      if (dew_f != 0.0f) {
+        float dew_val = dew_f;
+        if (metric_) dew_val = (dew_f - 32.0f) * 5.0f / 9.0f;
+        dew_point_sensor_->publish_state(dew_val);
+      }
     }
   } else if (ptype == 14) {
     int tips = ((int)d[3] + (((int)d[4] >> 7) << 8)) & 0x7F;
