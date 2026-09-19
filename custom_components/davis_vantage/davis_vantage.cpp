@@ -173,6 +173,16 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
   if (ptype == 8) {
     uint16_t raw = ((uint16_t)d[3] << 8) | d[4];
     float temp_f = raw / 160.0f;
+    
+    // Anomaly filter: prevent single-packet spikes > 10°F
+    if (current_temp_f_ != -1000.0f && std::abs(temp_f - current_temp_f_) > 10.0f) {
+        if (std::abs(temp_f - last_errant_temp_f_) > 2.0f) {
+            ESP_LOGW(TAG, "Temperature anomaly detected (%.1f F). Discarding reading.", temp_f);
+            last_errant_temp_f_ = temp_f;
+            return;
+        }
+    }
+    last_errant_temp_f_ = temp_f;
     current_temp_f_ = temp_f;
     float temp_val = temp_f;
     if (metric_) temp_val = (temp_f - 32.0f) * 5.0f / 9.0f; // F to C
@@ -201,6 +211,16 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
   } else if (ptype == 10) {
     uint16_t raw = (((uint16_t)(d[4] >> 4) & 0x03) << 8) | d[3];
     float hum = raw / 10.0f;
+    
+    // Anomaly filter: prevent single-packet spikes > 15%
+    if (current_hum_ != 0.0f && std::abs(hum - current_hum_) > 15.0f) {
+        if (std::abs(hum - last_errant_hum_) > 5.0f) {
+            ESP_LOGW(TAG, "Humidity anomaly detected (%.0f%%). Discarding reading.", hum);
+            last_errant_hum_ = hum;
+            return;
+        }
+    }
+    last_errant_hum_ = hum;
     current_hum_ = hum;
     if (hum > 0.0f && hum <= 100.0f) {
       if (hum_sensor_) hum_sensor_->publish_state(hum);

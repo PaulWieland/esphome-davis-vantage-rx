@@ -95,6 +95,9 @@ class DavisVantage : public PollingComponent {
   float current_hum_{0.0f};
   float current_wind_mph_{0.0f};
   float current_gust_mph_{0.0f};
+  
+  float last_errant_temp_f_{-1000.0f};
+  float last_errant_hum_{-1000.0f};
 
 
   // NA frequencies
