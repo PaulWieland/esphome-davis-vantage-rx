@@ -115,6 +115,9 @@ sensor:
     daily_rain:
       name: "Daily Rain"
       id: davis_rain
+    rain_rate:
+      name: "Rain Rate"
+      id: davis_rain_rate
 
 binary_sensor:
   - platform: davis_vantage
@@ -142,13 +145,15 @@ interval:
             - mqtt.publish_json:
                 topic: "weather/loop"
                 payload: |-
-                  root["outTemp_F"] = id(davis_temp).state;
-                  root["outHumidity"] = id(davis_hum).state;
-                  root["windSpeed_mph"] = id(davis_wind_speed).state;
-                  root["windSpeed10_mph"] = id(davis_wind_speed).state;
+                  root["outTemp_F"] = id(my_davis).get_temp_f();
+                  root["outHumidity"] = id(my_davis).get_humidity();
+                  root["dewpoint_F"] = id(my_davis).get_dew_point_f();
+                  root["windSpeed_mph"] = id(my_davis).get_wind_mph();
+                  root["windSpeed10_mph"] = id(my_davis).get_wind_mph();
                   root["windDir"] = id(my_davis).get_wind_dir_degrees();
-                  root["windGust_mph"] = id(davis_windgust).state;
-                  if (!std::isnan(id(davis_rain).state)) root["dayRain_in"] = id(davis_rain).state;
+                  root["windGust_mph"] = id(my_davis).get_gust_mph();
+                  root["dayRain_in"] = id(my_davis).get_daily_rain_in();
+                  root["rainRate_in_per_hr"] = id(my_davis).get_rain_rate_in();
 
   # --- OPTIONAL: WUNDERGROUND PUBLISH INTERVAL ---
   - interval: 60s
@@ -160,14 +165,16 @@ interval:
             - http_request.get:
                 url: !lambda |-
                   char url[300];
-                  float temp = id(davis_temp).state;
-                  float hum = id(davis_hum).state;
-                  float wind = id(davis_wind_speed).state;
+                  float temp = id(my_davis).get_temp_f();
+                  float hum = id(my_davis).get_humidity();
+                  float dew = id(my_davis).get_dew_point_f();
+                  float wind = id(my_davis).get_wind_mph();
                   float dir = id(my_davis).get_wind_dir_degrees();
-                  float gust = id(davis_windgust).state;
-                  float rain = std::isnan(id(davis_rain).state) ? 0.0 : id(davis_rain).state;
+                  float gust = id(my_davis).get_gust_mph();
+                  float rain = id(my_davis).get_daily_rain_in();
+                  float rain_rate = id(my_davis).get_rain_rate_in();
                   
-                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&action=updateraw",
+                  sprintf(url, "https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&dateutc=now&tempf=%.1f&dewptf=%.1f&humidity=%.0f&windspeedmph=%.1f&winddir=%.0f&windgustmph=%.1f&dailyrainin=%.2f&rainin=%.2f&action=updateraw",
                           "${wu_station_id}", "${wu_password}",
-                          temp, hum, wind, dir, gust, rain);
+                          temp, dew, hum, wind, dir, gust, rain, rain_rate);
                   return std::string(url);

@@ -5,6 +5,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include <vector>
+#include <cmath>
 
 // Forward declaration of CC1101 is tricky because of set_frequency.
 // We will use a template or define a small interface if we can't include it.
@@ -22,9 +23,15 @@ class DavisVantage : public PollingComponent {
   
   void set_temperature_sensor(sensor::Sensor *s) { temp_sensor_ = s; }
   void set_humidity_sensor(sensor::Sensor *s) { hum_sensor_ = s; }
+  void set_dew_point_sensor(sensor::Sensor *s) { dew_point_sensor_ = s; }
   void set_wind_speed_sensor(sensor::Sensor *s) { wind_speed_sensor_ = s; }
   void set_wind_gust_sensor(sensor::Sensor *s) { wind_gust_sensor_ = s; }
   void set_daily_rain_sensor(sensor::Sensor *s) { rain_sensor_ = s; }
+  void set_rain_rate_sensor(sensor::Sensor *s) { rain_rate_sensor_ = s; }
+  float get_rain_rate_in() {
+    if (millis() - last_tip_time_ > 900000) return 0.0f;
+    return current_rain_rate_in_;
+  }
   void set_battery_sensor(binary_sensor::BinarySensor *s) { battery_sensor_ = s; }
   void set_wind_dir_sensor(text_sensor::TextSensor *s) { wind_dir_sensor_ = s; }
 
@@ -35,15 +42,37 @@ class DavisVantage : public PollingComponent {
   void update() override;
   void process_packet(std::vector<uint8_t> &x);
 
+
   float get_wind_dir_degrees() const { return raw_wind_dir_; }
+
+  float get_temp_f() const { return current_temp_f_; }
+  float get_humidity() const { return current_hum_; }
+  float get_wind_mph() const { return current_wind_mph_; }
+  float get_gust_mph() const { return current_gust_mph_; }
+  float get_daily_rain_in() const { return rain_total_in_; }
+  
+  float get_dew_point_f() const {
+    if (current_temp_f_ == -1000.0f || current_hum_ == 0.0f) return 0.0f;
+    float t_c = (current_temp_f_ - 32.0f) * 5.0f / 9.0f;
+    float h = current_hum_;
+    if (h < 1.0f) h = 1.0f;
+    float v = log(h / 100.0f) + ((17.625f * t_c) / (243.04f + t_c));
+    float dew_c = (243.04f * v) / (17.625f - v);
+    return (dew_c * 9.0f / 5.0f) + 32.0f;
+  }
+
 
  protected:
   cc1101::CC1101Component *cc1101_{nullptr};
   sensor::Sensor *temp_sensor_{nullptr};
   sensor::Sensor *hum_sensor_{nullptr};
+  sensor::Sensor *dew_point_sensor_{nullptr};
   sensor::Sensor *wind_speed_sensor_{nullptr};
   sensor::Sensor *wind_gust_sensor_{nullptr};
   sensor::Sensor *rain_sensor_{nullptr};
+  sensor::Sensor *rain_rate_sensor_{nullptr};
+  uint32_t last_tip_time_{0};
+  float current_rain_rate_in_{0.0f};
   binary_sensor::BinarySensor *battery_sensor_{nullptr};
   text_sensor::TextSensor *wind_dir_sensor_{nullptr};
 
@@ -58,8 +87,15 @@ class DavisVantage : public PollingComponent {
   uint32_t prev_last_packet_time_{0};
   
   int rain_count_prev_{-1};
+
   float rain_total_in_{0.0f};
   float raw_wind_dir_{0.0f};
+
+  float current_temp_f_{-1000.0f};
+  float current_hum_{0.0f};
+  float current_wind_mph_{0.0f};
+  float current_gust_mph_{0.0f};
+
 
   // NA frequencies
   float na_hop_freqs[51] = {
