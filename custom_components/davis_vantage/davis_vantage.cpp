@@ -177,7 +177,7 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
     // Anomaly filter: prevent single-packet spikes > 10°F
     if (current_temp_f_ != -1000.0f && std::abs(temp_f - current_temp_f_) > 10.0f) {
         if (std::abs(temp_f - last_errant_temp_f_) > 2.0f) {
-            ESP_LOGW(TAG, "Temperature anomaly detected (%.1f F). Discarding reading.", temp_f);
+            ESP_LOGW(TAG, "Temperature anomaly rejected! Jumped from %.1f F to %.1f F", current_temp_f_, temp_f);
             last_errant_temp_f_ = temp_f;
             return;
         }
@@ -215,7 +215,7 @@ void DavisVantage::process_packet(std::vector<uint8_t> &x) {
     // Anomaly filter: prevent single-packet spikes > 15%
     if (current_hum_ != 0.0f && std::abs(hum - current_hum_) > 15.0f) {
         if (std::abs(hum - last_errant_hum_) > 5.0f) {
-            ESP_LOGW(TAG, "Humidity anomaly detected (%.0f%%). Discarding reading.", hum);
+            ESP_LOGW(TAG, "Humidity anomaly rejected! Jumped from %.0f%% to %.0f%%", current_hum_, hum);
             last_errant_hum_ = hum;
             return;
         }
